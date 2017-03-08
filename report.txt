@@ -1,0 +1,12 @@
+
+QUESTION:
+
+Try running all four implementations using varying input sizes. Compare the performance and scalability of each implementation. Explain why you think each implementation performs better or worse than the one before it.
+
+
+ANSWER:
+
+
+
+
+
