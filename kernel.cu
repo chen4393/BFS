@@ -26,21 +26,19 @@ __global__ void gpu_global_queuing_kernel(unsigned int *nodePtrs,
   unsigned int *numCurrLevelNodes, unsigned int *numNextLevelNodes) {
 
   // INSERT KERNEL CODE HERE
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  while (idx < *numCurrLevelNodes) {
+    const unsigned int node = currLevelNodes[idx];
+    for (unsigned int nbrIdx = nodePtrs[node]; nbrIdx < nodePtrs[node + 1]; ++nbrIdx) {
+      unsigned int neighbor = nodeNeighbors[nbrIdx];
+      const unsigned int wasVisited = atomicExch(&(nodeVisited[neighbor]), 1);
+      if (!wasVisited) {
+        const unsigned int globalTail = atomicAdd(numNextLevelNodes, 1);
+        nextLevelNodes[globalTail] = neighbor;
+      }// if
+    }// for
+    idx += blockDim.x * gridDim.x;
+  }// while
 }
 
 __global__ void gpu_block_queuing_kernel(unsigned int *nodePtrs,
@@ -49,29 +47,40 @@ __global__ void gpu_block_queuing_kernel(unsigned int *nodePtrs,
   unsigned int *numCurrLevelNodes, unsigned int *numNextLevelNodes) {
 
   // INSERT KERNEL CODE HERE
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  __shared__ unsigned int nextLevelNodes_s[BLOCK_SIZE];  //  block-level privatized queue
+  __shared__ unsigned int numNextLevelNodes_s, ourNumNextLevelNodes;
+  
+  if (threadIdx.x == 0)  numNextLevelNodes_s = 0;
+  __syncthreads();
+  
+  unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  while (idx < *numCurrLevelNodes) {
+    const unsigned int node = currLevelNodes[idx];
+    for (unsigned int nbrIdx = nodePtrs[node]; nbrIdx < nodePtrs[node + 1]; ++nbrIdx) {
+      unsigned int neighbor = nodeNeighbors[nbrIdx];
+      const unsigned int wasVisited = atomicExch(&(nodeVisited[neighbor]), 1);//  mark it as visited
+      if (!wasVisited) {
+        const unsigned int myTail = atomicAdd(&numNextLevelNodes_s, 1);
+        if (myTail < BLOCK_SIZE) {//  if not full, add it to block-level queues
+          nextLevelNodes_s[myTail] = neighbor;
+        } else {//  if full, add it to global queue
+          numNextLevelNodes_s = BLOCK_SIZE;
+          const unsigned int myGlobalTail = atomicAdd(numNextLevelNodes, 1);
+          nextLevelNodes[myGlobalTail] = neighbor;
+        }//  if..else
+      }//  if
+    }//  for
+    idx += blockDim.x * gridDim.x;
+  }// while
+  __syncthreads();
+  
+  if (threadIdx.x == 0)
+    ourNumNextLevelNodes = atomicAdd(numNextLevelNodes, numNextLevelNodes_s);//  beginning index of reserved section
+  __syncthreads();
+  
+  //  coalesced writes to global nextLevelNodes array
+  for (unsigned int i = threadIdx.x; i < numNextLevelNodes_s; i += blockDim.x)
+    nextLevelNodes[ourNumNextLevelNodes + i] = nextLevelNodes_s[i];//  copy vertices from block queue to global queue
 }
 
 __global__ void gpu_warp_queuing_kernel(unsigned int *nodePtrs,
