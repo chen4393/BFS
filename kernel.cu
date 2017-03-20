@@ -47,7 +47,7 @@ __global__ void gpu_block_queuing_kernel(unsigned int *nodePtrs,
   unsigned int *numCurrLevelNodes, unsigned int *numNextLevelNodes) {
 
   // INSERT KERNEL CODE HERE
-  __shared__ unsigned int nextLevelNodes_s[BLOCK_SIZE];  //  block-level privatized queue
+  __shared__ unsigned int nextLevelNodes_s[BQ_CAPACITY];  //  block-level privatized queue
   __shared__ unsigned int numNextLevelNodes_s, ourNumNextLevelNodes;
   
   if (threadIdx.x == 0)  numNextLevelNodes_s = 0;
@@ -61,10 +61,10 @@ __global__ void gpu_block_queuing_kernel(unsigned int *nodePtrs,
       const unsigned int wasVisited = atomicExch(&(nodeVisited[neighbor]), 1);//  mark it as visited
       if (!wasVisited) {
         const unsigned int myTail = atomicAdd(&numNextLevelNodes_s, 1);
-        if (myTail < BLOCK_SIZE) {//  if not full, add it to block-level queues
+        if (myTail < BQ_CAPACITY) {//  if not full, add it to block-level queues
           nextLevelNodes_s[myTail] = neighbor;
         } else {//  if full, add it to global queue
-          numNextLevelNodes_s = BLOCK_SIZE;
+          numNextLevelNodes_s = BQ_CAPACITY;
           const unsigned int myGlobalTail = atomicAdd(numNextLevelNodes, 1);
           nextLevelNodes[myGlobalTail] = neighbor;
         }//  if..else
