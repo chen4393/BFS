@@ -30,13 +30,21 @@ __global__ void gpu_global_queuing_kernel(unsigned int *nodePtrs,
   // INSERT KERNEL CODE HERE
   unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
   while (idx < *numCurrLevelNodes) {
+<<<<<<< HEAD
     unsigned int node = currLevelNodes[idx];
+=======
+    const unsigned int node = currLevelNodes[idx];
+>>>>>>> ad66ce81e6162113499c4ca15021e65301634553
     for (unsigned int nbrIdx = nodePtrs[node]; nbrIdx < nodePtrs[node + 1]; ++nbrIdx) {
       unsigned int neighbor = nodeNeighbors[nbrIdx];
       const unsigned int wasVisited = atomicExch(&(nodeVisited[neighbor]), 1);
       if (!wasVisited) {
         const unsigned int globalTail = atomicAdd(numNextLevelNodes, 1);
+<<<<<<< HEAD
 	nextLevelNodes[globalTail] = neighbor;
+=======
+        nextLevelNodes[globalTail] = neighbor;
+>>>>>>> ad66ce81e6162113499c4ca15021e65301634553
       }// if
     }// for
     idx += blockDim.x * gridDim.x;
